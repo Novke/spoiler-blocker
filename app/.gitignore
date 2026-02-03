@@ -1,1 +1,4 @@
 /build
+
+# ML model (download separately - too large for git)
+app/src/main/assets/model.onnx
