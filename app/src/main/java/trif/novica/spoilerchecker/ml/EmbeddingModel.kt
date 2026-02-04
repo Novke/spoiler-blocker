@@ -8,6 +8,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
 import java.nio.LongBuffer
 import kotlin.math.sqrt
 
@@ -29,14 +31,23 @@ class EmbeddingModel(private val context: Context) {
 
             ortEnvironment = OrtEnvironment.getEnvironment()
 
-            val modelBytes = context.assets.open(MODEL_FILE).use { it.readBytes() }
+            // Copy model from assets to internal storage to avoid OOM
+            val modelFile = File(context.filesDir, MODEL_FILE)
+            if (!modelFile.exists()) {
+                context.assets.open(MODEL_FILE).use { input ->
+                    FileOutputStream(modelFile).use { output ->
+                        input.copyTo(output, bufferSize = 8192)
+                    }
+                }
+            }
 
             val sessionOptions = OrtSession.SessionOptions().apply {
                 setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
                 setIntraOpNumThreads(2)
             }
 
-            ortSession = ortEnvironment?.createSession(modelBytes, sessionOptions)
+            // Load from file path instead of byte array
+            ortSession = ortEnvironment?.createSession(modelFile.absolutePath, sessionOptions)
             tokenizer = BertTokenizer(context)
             isInitialized = true
         }
