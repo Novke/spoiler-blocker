@@ -11,6 +11,9 @@ interface CleaningResultDao {
     @Query("SELECT * FROM cleaning_history ORDER BY timestamp DESC LIMIT 20")
     fun getRecentResults(): Flow<List<CleaningResult>>
 
+    @Query("SELECT * FROM cleaning_history ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun getRecentResultsOnce(limit: Int = 10): List<CleaningResult>
+
     @Insert
     suspend fun insert(result: CleaningResult): Long
 

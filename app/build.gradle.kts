@@ -72,6 +72,15 @@ dependencies {
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)
 
+    // Retrofit & Networking
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.gson)
+    implementation(libs.okhttp.logging)
+    implementation(libs.gson)
+
+    // Coil for images
+    implementation(libs.coil.compose)
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

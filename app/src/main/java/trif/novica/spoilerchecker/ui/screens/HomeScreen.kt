@@ -19,13 +19,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.NotificationsOff
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.SportsBasketball
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,9 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -51,7 +49,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
-import trif.novica.spoilerchecker.data.model.FavoriteTeam
+import trif.novica.spoilerchecker.data.model.Game
+import trif.novica.spoilerchecker.data.model.Team
 import trif.novica.spoilerchecker.service.SpoilerNotificationListenerService
 import trif.novica.spoilerchecker.ui.components.CleaningResultCard
 import trif.novica.spoilerchecker.ui.viewmodel.HomeUiState
@@ -63,16 +62,15 @@ import java.util.Locale
 @Composable
 fun HomeScreen(
     uiState: HomeUiState,
-    onQueryChanged: (String) -> Unit,
-    onCleanSpoilers: () -> Unit,
-    onAddTeam: (String) -> Unit,
-    onRemoveTeam: (FavoriteTeam) -> Unit,
-    onTeamClick: (FavoriteTeam) -> Unit,
+    onCleanGame: (Game) -> Unit,
+    onCleanTeam: (Team) -> Unit,
+    onRemoveFavorite: (Int) -> Unit,
+    onRefreshGames: () -> Unit,
     onDismissResult: () -> Unit,
     onDismissError: () -> Unit,
+    onNavigateToTeams: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var showAddTeamDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -114,7 +112,7 @@ fun HomeScreen(
                         style = MaterialTheme.typography.headlineSmall
                     )
                     Text(
-                        text = "Clean notifications before they spoil the game",
+                        text = "Tap Clean to remove game spoilers",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -211,58 +209,7 @@ fun HomeScreen(
             }
         }
 
-        // Search Input
-        item {
-            OutlinedTextField(
-                value = uiState.queryText,
-                onValueChange = onQueryChanged,
-                label = { Text("Match or team name") },
-                placeholder = { Text("e.g., Lakers vs Celtics") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                leadingIcon = {
-                    Icon(Icons.Filled.Search, contentDescription = null)
-                },
-                trailingIcon = {
-                    if (uiState.queryText.isNotEmpty()) {
-                        IconButton(onClick = { onQueryChanged("") }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Clear")
-                        }
-                    }
-                }
-            )
-        }
-
-        // Clean Button
-        item {
-            Button(
-                onClick = onCleanSpoilers,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = uiState.queryText.isNotBlank() &&
-                         !uiState.isLoading &&
-                         uiState.isModelReady &&
-                         hasNotificationPermission
-            ) {
-                if (uiState.isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-                Text(
-                    text = when {
-                        !hasNotificationPermission -> "Permission required"
-                        !uiState.isModelReady -> "Loading model..."
-                        uiState.isLoading -> "Scanning..."
-                        else -> "Clean Notifications"
-                    }
-                )
-            }
-        }
-
-        // Favorite Teams Section
+        // Yesterday's Games Section
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -270,20 +217,78 @@ fun HomeScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Quick Access",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "Yesterday's Games",
+                    style = MaterialTheme.typography.titleMedium
                 )
-                FilledTonalButton(
-                    onClick = { showAddTeamDialog = true }
+                IconButton(
+                    onClick = onRefreshGames,
+                    enabled = !uiState.isLoadingGames
                 ) {
-                    Icon(
-                        Icons.Filled.Add,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                    if (uiState.isLoadingGames) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
+                    }
+                }
+            }
+        }
+
+        // Games List
+        if (uiState.isLoadingGames && uiState.yesterdaysGames.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+        } else if (uiState.yesterdaysGames.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No games found for yesterday",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Add")
+                }
+            }
+        } else {
+            items(uiState.yesterdaysGames) { game ->
+                GameCleanCard(
+                    game = game,
+                    isLoading = uiState.cleaningGameId == game.id,
+                    enabled = hasNotificationPermission && uiState.cleaningGameId == null,
+                    onClean = { onCleanGame(game) }
+                )
+            }
+        }
+
+        // Favorite Teams Section
+        item {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Favorite Teams",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                FilledTonalButton(onClick = onNavigateToTeams) {
+                    Text("Browse Teams")
                 }
             }
         }
@@ -297,7 +302,7 @@ fun HomeScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Add your favorite teams for quick access",
+                        text = "Add favorite teams for quick access",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
@@ -311,11 +316,11 @@ fun HomeScreen(
                     uiState.favoriteTeams.forEach { team ->
                         InputChip(
                             selected = false,
-                            onClick = { onTeamClick(team) },
+                            onClick = { onCleanTeam(team) },
                             label = { Text(team.name) },
                             trailingIcon = {
                                 IconButton(
-                                    onClick = { onRemoveTeam(team) },
+                                    onClick = { onRemoveFavorite(team.id) },
                                     modifier = Modifier.size(18.dp)
                                 ) {
                                     Icon(
@@ -379,52 +384,71 @@ fun HomeScreen(
 
         item { Spacer(modifier = Modifier.height(16.dp)) }
     }
-
-    if (showAddTeamDialog) {
-        AddTeamDialog(
-            onDismiss = { showAddTeamDialog = false },
-            onConfirm = { teamName ->
-                onAddTeam(teamName)
-                showAddTeamDialog = false
-            }
-        )
-    }
 }
 
 @Composable
-private fun AddTeamDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
+private fun GameCleanCard(
+    game: Game,
+    isLoading: Boolean,
+    enabled: Boolean,
+    onClean: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    var teamName by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Add Team") },
-        text = {
-            OutlinedTextField(
-                value = teamName,
-                onValueChange = { teamName = it },
-                label = { Text("Team name") },
-                placeholder = { Text("e.g., Lakers") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(teamName) },
-                enabled = teamName.isNotBlank()
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
             ) {
-                Text("Add")
+                Icon(
+                    imageVector = Icons.Filled.SportsBasketball,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = game.matchDescription,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Text(
+                        text = game.shortDescription,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
+            Button(
+                onClick = onClean,
+                enabled = enabled && !isLoading,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text("Clean")
+                }
             }
         }
-    )
+    }
 }
 
 private fun formatTimestamp(timestamp: Long): String {

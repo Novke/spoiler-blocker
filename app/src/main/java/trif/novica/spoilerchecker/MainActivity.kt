@@ -25,11 +25,11 @@ import androidx.navigation.compose.rememberNavController
 import trif.novica.spoilerchecker.ui.navigation.Screen
 import trif.novica.spoilerchecker.ui.navigation.bottomNavItems
 import trif.novica.spoilerchecker.ui.screens.HomeScreen
-import trif.novica.spoilerchecker.ui.screens.RecentGamesScreen
 import trif.novica.spoilerchecker.ui.screens.SettingsScreen
+import trif.novica.spoilerchecker.ui.screens.TeamsScreen
 import trif.novica.spoilerchecker.ui.theme.SpoilerCheckerTheme
 import trif.novica.spoilerchecker.ui.viewmodel.HomeViewModel
-import trif.novica.spoilerchecker.ui.viewmodel.RecentGamesViewModel
+import trif.novica.spoilerchecker.ui.viewmodel.TeamsViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -91,7 +91,9 @@ private fun MainScreen(app: SpoilerShieldApp) {
             composable(Screen.Home.route) {
                 val viewModel: HomeViewModel = viewModel(
                     factory = HomeViewModel.Factory(
-                        app.appModule.repository,
+                        app.appModule.teamRepository,
+                        app.appModule.gameRepository,
+                        app.appModule.spoilerRepository,
                         app.appModule.spoilerDetector,
                         app.appModule.embeddingModel
                     )
@@ -100,37 +102,28 @@ private fun MainScreen(app: SpoilerShieldApp) {
 
                 HomeScreen(
                     uiState = uiState,
-                    onQueryChanged = viewModel::onQueryChanged,
-                    onCleanSpoilers = viewModel::cleanSpoilers,
-                    onAddTeam = viewModel::addFavoriteTeam,
-                    onRemoveTeam = viewModel::removeFavoriteTeam,
-                    onTeamClick = viewModel::useTeamAsQuery,
+                    onCleanGame = viewModel::cleanSpoilersForGame,
+                    onCleanTeam = viewModel::cleanSpoilersForTeam,
+                    onRemoveFavorite = viewModel::removeFavoriteTeam,
+                    onRefreshGames = viewModel::loadYesterdaysGames,
                     onDismissResult = viewModel::dismissLastResult,
-                    onDismissError = viewModel::dismissError
+                    onDismissError = viewModel::dismissError,
+                    onNavigateToTeams = {
+                        navController.navigate(Screen.Teams.route)
+                    }
                 )
             }
 
-            composable(Screen.Games.route) {
-                val viewModel: RecentGamesViewModel = viewModel(
-                    factory = RecentGamesViewModel.Factory(app.appModule.repository)
+            composable(Screen.Teams.route) {
+                val viewModel: TeamsViewModel = viewModel(
+                    factory = TeamsViewModel.Factory(app.appModule.teamRepository)
                 )
                 val uiState by viewModel.uiState.collectAsState()
 
-                val homeViewModel: HomeViewModel = viewModel(
-                    factory = HomeViewModel.Factory(
-                        app.appModule.repository,
-                        app.appModule.spoilerDetector,
-                        app.appModule.embeddingModel
-                    )
-                )
-
-                RecentGamesScreen(
+                TeamsScreen(
                     uiState = uiState,
-                    onFilterSport = viewModel::filterBySport,
-                    onGameClick = { game ->
-                        homeViewModel.onQueryChanged(game.matchDescription)
-                        navController.navigate(Screen.Home.route)
-                    }
+                    onSearchQueryChanged = viewModel::onSearchQueryChanged,
+                    onToggleFavorite = viewModel::toggleFavorite
                 )
             }
 

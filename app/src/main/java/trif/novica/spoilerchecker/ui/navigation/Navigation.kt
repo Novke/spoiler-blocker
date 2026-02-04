@@ -1,12 +1,12 @@
 package trif.novica.spoilerchecker.ui.navigation
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SportsScore
-import androidx.compose.material.icons.outlined.CleaningServices
+import androidx.compose.material.icons.filled.SportsBasketball
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.SportsScore
+import androidx.compose.material.icons.outlined.SportsBasketball
 import androidx.compose.ui.graphics.vector.ImageVector
 
 sealed class Screen(
@@ -17,16 +17,16 @@ sealed class Screen(
 ) {
     data object Home : Screen(
         route = "home",
-        title = "Clean",
-        selectedIcon = Icons.Filled.CleaningServices,
-        unselectedIcon = Icons.Outlined.CleaningServices
+        title = "Home",
+        selectedIcon = Icons.Filled.Home,
+        unselectedIcon = Icons.Outlined.Home
     )
 
-    data object Games : Screen(
-        route = "games",
-        title = "Games",
-        selectedIcon = Icons.Filled.SportsScore,
-        unselectedIcon = Icons.Outlined.SportsScore
+    data object Teams : Screen(
+        route = "teams",
+        title = "Teams",
+        selectedIcon = Icons.Filled.SportsBasketball,
+        unselectedIcon = Icons.Outlined.SportsBasketball
     )
 
     data object Settings : Screen(
@@ -37,4 +37,4 @@ sealed class Screen(
     )
 }
 
-val bottomNavItems = listOf(Screen.Home, Screen.Games, Screen.Settings)
+val bottomNavItems = listOf(Screen.Home, Screen.Teams, Screen.Settings)
