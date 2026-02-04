@@ -90,12 +90,21 @@ class HomeViewModel(
             _errorMessage.value = null
 
             try {
+                android.util.Log.d("SpoilerShield", "=== Starting clean for query: '$query' ===")
+                android.util.Log.d("SpoilerShield", "Model ready: ${embeddingModel.isReady()}")
+
                 SpoilerNotificationListenerService.refreshActiveNotifications()
                 kotlinx.coroutines.delay(100)
 
                 val notifications = SpoilerNotificationListenerService.activeNotifications.value
 
+                android.util.Log.d("SpoilerShield", "Found ${notifications.size} notifications:")
+                notifications.forEach { n ->
+                    android.util.Log.d("SpoilerShield", "  - [${n.packageName}] ${n.title}: ${n.text}")
+                }
+
                 if (notifications.isEmpty()) {
+                    android.util.Log.d("SpoilerShield", "No notifications found - check permission!")
                     _lastResult.value = CleaningResultMessage(query, 0)
                     _queryText.value = ""
                     return@launch
@@ -105,6 +114,8 @@ class HomeViewModel(
                     query = query,
                     notifications = notifications
                 )
+
+                android.util.Log.d("SpoilerShield", "Spoilers found: ${spoilerNotifications.size}")
 
                 if (spoilerNotifications.isNotEmpty()) {
                     val keys = spoilerNotifications.map { it.notification.key }
