@@ -25,6 +25,43 @@ class GameRepository(
     }
 
     /**
+     * Get games from the last N hours.
+     * Fetches multiple days if needed and filters by time.
+     */
+    suspend fun getRecentGames(hours: Int): Result<List<Game>> {
+        return try {
+            val now = System.currentTimeMillis()
+            val cutoffTime = now - (hours * 60 * 60 * 1000L)
+
+            // Determine how many days back we need to fetch
+            val daysToFetch = (hours / 24) + 1
+
+            val allGames = mutableListOf<Game>()
+
+            for (i in 0 until daysToFetch) {
+                val date = Calendar.getInstance().apply {
+                    add(Calendar.DAY_OF_YEAR, -i)
+                }
+                val result = getGamesForDate(date)
+                result.onSuccess { games ->
+                    allGames.addAll(games)
+                }
+            }
+
+            // Filter games that started within the time window
+            val filteredGames = allGames
+                .filter { it.scheduledTime >= cutoffTime }
+                .sortedByDescending { it.scheduledTime }
+
+            Log.d(TAG, "Filtered to ${filteredGames.size} games in last $hours hours")
+            Result.success(filteredGames)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to fetch recent games", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Get games for yesterday (most common use case for spoiler blocking).
      */
     suspend fun getYesterdaysGames(): Result<List<Game>> {

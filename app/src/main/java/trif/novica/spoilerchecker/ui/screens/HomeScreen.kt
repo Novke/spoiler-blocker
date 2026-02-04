@@ -30,6 +30,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
@@ -57,6 +58,7 @@ import trif.novica.spoilerchecker.data.model.Team
 import trif.novica.spoilerchecker.service.SpoilerNotificationListenerService
 import trif.novica.spoilerchecker.ui.components.CleaningResultCard
 import trif.novica.spoilerchecker.ui.viewmodel.HomeUiState
+import trif.novica.spoilerchecker.ui.viewmodel.TimeFilter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -68,6 +70,7 @@ fun HomeScreen(
     onCleanGame: (Game) -> Unit,
     onCleanTeam: (Team) -> Unit,
     onRemoveFavorite: (Int) -> Unit,
+    onTimeFilterChanged: (TimeFilter) -> Unit,
     onRefreshGames: () -> Unit,
     onDismissResult: () -> Unit,
     onDismissError: () -> Unit,
@@ -212,7 +215,7 @@ fun HomeScreen(
             }
         }
 
-        // Yesterday's Games Section
+        // Recent Games Section
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -220,7 +223,7 @@ fun HomeScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Yesterday's Games",
+                    text = "Recent Games",
                     style = MaterialTheme.typography.titleMedium
                 )
                 IconButton(
@@ -239,8 +242,23 @@ fun HomeScreen(
             }
         }
 
+        // Time Filter Chips
+        item {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TimeFilter.entries.forEach { filter ->
+                    FilterChip(
+                        selected = uiState.selectedTimeFilter == filter,
+                        onClick = { onTimeFilterChanged(filter) },
+                        label = { Text(filter.label) }
+                    )
+                }
+            }
+        }
+
         // Games List
-        if (uiState.isLoadingGames && uiState.yesterdaysGames.isEmpty()) {
+        if (uiState.isLoadingGames && uiState.recentGames.isEmpty()) {
             item {
                 Box(
                     modifier = Modifier
@@ -251,7 +269,7 @@ fun HomeScreen(
                     CircularProgressIndicator()
                 }
             }
-        } else if (uiState.yesterdaysGames.isEmpty()) {
+        } else if (uiState.recentGames.isEmpty()) {
             item {
                 Box(
                     modifier = Modifier
@@ -260,7 +278,7 @@ fun HomeScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "No games found for yesterday",
+                        text = "No games found",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
@@ -268,7 +286,7 @@ fun HomeScreen(
                 }
             }
         } else {
-            items(uiState.yesterdaysGames) { game ->
+            items(uiState.recentGames) { game ->
                 GameCleanCard(
                     game = game,
                     isLoading = uiState.cleaningGameId == game.id,

@@ -105,7 +105,8 @@ private fun MainScreen(app: SpoilerShieldApp) {
                     onCleanGame = viewModel::cleanSpoilersForGame,
                     onCleanTeam = viewModel::cleanSpoilersForTeam,
                     onRemoveFavorite = viewModel::removeFavoriteTeam,
-                    onRefreshGames = viewModel::loadYesterdaysGames,
+                    onTimeFilterChanged = viewModel::setTimeFilter,
+                    onRefreshGames = viewModel::loadRecentGames,
                     onDismissResult = viewModel::dismissLastResult,
                     onDismissError = viewModel::dismissError,
                     onNavigateToTeams = {

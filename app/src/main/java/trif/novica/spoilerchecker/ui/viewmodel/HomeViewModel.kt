@@ -20,8 +20,15 @@ import trif.novica.spoilerchecker.detection.SpoilerDetector
 import trif.novica.spoilerchecker.ml.EmbeddingModel
 import trif.novica.spoilerchecker.service.SpoilerNotificationListenerService
 
+enum class TimeFilter(val label: String, val hours: Int) {
+    HOURS_12("12h", 12),
+    DAYS_1("1d", 24),
+    DAYS_2("2d", 48)
+}
+
 data class HomeUiState(
-    val yesterdaysGames: List<Game> = emptyList(),
+    val recentGames: List<Game> = emptyList(),
+    val selectedTimeFilter: TimeFilter = TimeFilter.DAYS_1,
     val favoriteTeams: List<Team> = emptyList(),
     val recentResults: List<CleaningResult> = emptyList(),
     val isLoadingGames: Boolean = false,
@@ -49,7 +56,8 @@ class HomeViewModel(
         private const val TAG = "HomeViewModel"
     }
 
-    private val _yesterdaysGames = MutableStateFlow<List<Game>>(emptyList())
+    private val _allGames = MutableStateFlow<List<Game>>(emptyList())  // All games (2d), cached
+    private val _selectedTimeFilter = MutableStateFlow(TimeFilter.DAYS_1)
     private val _isLoadingGames = MutableStateFlow(false)
     private val _isLoadingTeams = MutableStateFlow(false)
     private val _cleaningGameId = MutableStateFlow<String?>(null)
@@ -58,7 +66,8 @@ class HomeViewModel(
     private val _errorMessage = MutableStateFlow<String?>(null)
 
     val uiState: StateFlow<HomeUiState> = combine(
-        _yesterdaysGames,
+        _allGames,
+        _selectedTimeFilter,
         teamRepository.getFavoriteTeams(),
         spoilerRepository.recentCleaningResults,
         _isLoadingGames,
@@ -69,16 +78,24 @@ class HomeViewModel(
         _errorMessage
     ) { values ->
         @Suppress("UNCHECKED_CAST")
+        val allGames = values[0] as List<Game>
+        val filter = values[1] as TimeFilter
+
+        // Filter games in-memory based on selected time filter
+        val cutoffTime = System.currentTimeMillis() - (filter.hours * 60 * 60 * 1000L)
+        val filteredGames = allGames.filter { it.scheduledTime >= cutoffTime }
+
         HomeUiState(
-            yesterdaysGames = values[0] as List<Game>,
-            favoriteTeams = values[1] as List<Team>,
-            recentResults = values[2] as List<CleaningResult>,
-            isLoadingGames = values[3] as Boolean,
-            isLoadingTeams = values[4] as Boolean,
-            cleaningGameId = values[5] as String?,
-            isModelReady = values[6] as Boolean,
-            lastCleaningResult = values[7] as CleaningResultMessage?,
-            errorMessage = values[8] as String?
+            recentGames = filteredGames,
+            selectedTimeFilter = filter,
+            favoriteTeams = values[2] as List<Team>,
+            recentResults = values[3] as List<CleaningResult>,
+            isLoadingGames = values[4] as Boolean,
+            isLoadingTeams = values[5] as Boolean,
+            cleaningGameId = values[6] as String?,
+            isModelReady = values[7] as Boolean,
+            lastCleaningResult = values[8] as CleaningResultMessage?,
+            errorMessage = values[9] as String?
         )
     }.stateIn(
         scope = viewModelScope,
@@ -106,20 +123,27 @@ class HomeViewModel(
                 _isLoadingTeams.value = false
             }
 
-            // Load yesterday's games
-            loadYesterdaysGames()
+            // Load recent games
+            loadRecentGames()
         }
     }
 
-    fun loadYesterdaysGames() {
+    fun setTimeFilter(filter: TimeFilter) {
+        _selectedTimeFilter.value = filter
+        // No API call - filtering is done in-memory via combine
+    }
+
+    fun loadRecentGames() {
         viewModelScope.launch {
             _isLoadingGames.value = true
             _errorMessage.value = null
 
-            val result = gameRepository.getYesterdaysGames()
+            // Always fetch max (2 days = 48h), filter in-memory
+            val result = gameRepository.getRecentGames(TimeFilter.DAYS_2.hours)
+
             result.onSuccess { games ->
-                _yesterdaysGames.value = games
-                Log.d(TAG, "Loaded ${games.size} games from yesterday")
+                _allGames.value = games
+                Log.d(TAG, "Loaded ${games.size} games (cached for 48h)")
             }.onFailure { e ->
                 _errorMessage.value = "Failed to load games: ${e.message}"
                 Log.e(TAG, "Failed to load games", e)
