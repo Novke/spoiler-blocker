@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -286,11 +287,15 @@ fun HomeScreen(
                 }
             }
         } else {
+            val favoriteTeamIds = uiState.favoriteTeams.map { it.id }.toSet()
+
             items(uiState.recentGames) { game ->
                 GameCleanCard(
                     game = game,
                     isLoading = uiState.cleaningGameId == game.id,
                     enabled = hasNotificationPermission && uiState.cleaningGameId == null,
+                    isHomeFavorite = game.homeTeam.id in favoriteTeamIds,
+                    isAwayFavorite = game.awayTeam.id in favoriteTeamIds,
                     onClean = { onCleanGame(game) }
                 )
             }
@@ -412,13 +417,21 @@ private fun GameCleanCard(
     game: Game,
     isLoading: Boolean,
     enabled: Boolean,
+    isHomeFavorite: Boolean,
+    isAwayFavorite: Boolean,
     onClean: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isFavoriteGame = isHomeFavorite || isAwayFavorite
+
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            containerColor = if (isFavoriteGame) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            } else {
+                MaterialTheme.colorScheme.surfaceContainerLow
+            }
         )
     ) {
         Row(
@@ -432,11 +445,12 @@ private fun GameCleanCard(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                // Away team logo
-                TeamLogo(
+                // Away team logo with star
+                TeamLogoWithStar(
                     logoUrl = game.awayTeam.logoUrl,
                     teamName = game.awayTeam.name,
-                    size = 32
+                    size = 32,
+                    isFavorite = isAwayFavorite
                 )
 
                 Text(
@@ -446,11 +460,12 @@ private fun GameCleanCard(
                     modifier = Modifier.padding(horizontal = 6.dp)
                 )
 
-                // Home team logo
-                TeamLogo(
+                // Home team logo with star
+                TeamLogoWithStar(
                     logoUrl = game.homeTeam.logoUrl,
                     teamName = game.homeTeam.name,
-                    size = 32
+                    size = 32,
+                    isFavorite = isHomeFavorite
                 )
 
                 Spacer(modifier = Modifier.width(12.dp))
@@ -461,7 +476,7 @@ private fun GameCleanCard(
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
-                        text = game.shortDescription,
+                        text = formatGameTime(game.scheduledTime),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -489,34 +504,54 @@ private fun GameCleanCard(
 }
 
 @Composable
-private fun TeamLogo(
+private fun TeamLogoWithStar(
     logoUrl: String?,
     teamName: String,
     size: Int,
+    isFavorite: Boolean,
     modifier: Modifier = Modifier
 ) {
-    if (logoUrl != null) {
-        AsyncImage(
-            model = logoUrl,
-            contentDescription = "$teamName logo",
-            modifier = modifier
-                .size(size.dp)
-                .clip(CircleShape),
-            contentScale = ContentScale.Fit
-        )
-    } else {
-        Box(
-            modifier = modifier
-                .size(size.dp)
-                .clip(CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = teamName.take(3).uppercase(),
-                style = MaterialTheme.typography.labelSmall
+    Box(modifier = modifier) {
+        if (logoUrl != null) {
+            AsyncImage(
+                model = logoUrl,
+                contentDescription = "$teamName logo",
+                modifier = Modifier
+                    .size(size.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Fit
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(size.dp)
+                    .clip(CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = teamName.take(3).uppercase(),
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+        }
+
+        // Star indicator for favorites
+        if (isFavorite) {
+            Icon(
+                imageVector = Icons.Filled.Star,
+                contentDescription = "Favorite",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .size(14.dp)
+                    .align(Alignment.TopEnd)
             )
         }
     }
+}
+
+private fun formatGameTime(timestamp: Long): String {
+    val sdf = SimpleDateFormat("HH:mm dd.MM", Locale.getDefault())
+    return sdf.format(Date(timestamp))
 }
 
 private fun formatTimestamp(timestamp: Long): String {

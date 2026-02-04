@@ -80,13 +80,23 @@ class HomeViewModel(
         @Suppress("UNCHECKED_CAST")
         val allGames = values[0] as List<Game>
         val filter = values[1] as TimeFilter
+        val favoriteTeams = values[2] as List<Team>
+        val favoriteTeamIds = favoriteTeams.map { it.id }.toSet()
 
         // Filter games in-memory based on selected time filter
         val cutoffTime = System.currentTimeMillis() - (filter.hours * 60 * 60 * 1000L)
         val filteredGames = allGames.filter { it.scheduledTime >= cutoffTime }
 
+        // Sort: favorites first, then by date (most recent first)
+        val sortedGames = filteredGames.sortedWith(
+            compareByDescending<Game> { game ->
+                // Check if either team is in favorites
+                game.homeTeam.id in favoriteTeamIds || game.awayTeam.id in favoriteTeamIds
+            }.thenByDescending { it.scheduledTime }
+        )
+
         HomeUiState(
-            recentGames = filteredGames,
+            recentGames = sortedGames,
             selectedTimeFilter = filter,
             favoriteTeams = values[2] as List<Team>,
             recentResults = values[3] as List<CleaningResult>,
