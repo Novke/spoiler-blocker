@@ -18,12 +18,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.SportsBasketball
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -46,8 +46,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
+import coil.compose.AsyncImage
 import androidx.lifecycle.repeatOnLifecycle
 import trif.novica.spoilerchecker.data.model.Game
 import trif.novica.spoilerchecker.data.model.Team
@@ -411,17 +414,33 @@ private fun GameCleanCard(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
-                Icon(
-                    imageVector = Icons.Filled.SportsBasketball,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
+                // Away team logo
+                TeamLogo(
+                    logoUrl = game.awayTeam.logoUrl,
+                    teamName = game.awayTeam.name,
+                    size = 32
                 )
+
+                Text(
+                    text = "@",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 6.dp)
+                )
+
+                // Home team logo
+                TeamLogo(
+                    logoUrl = game.homeTeam.logoUrl,
+                    teamName = game.homeTeam.name,
+                    size = 32
+                )
+
                 Spacer(modifier = Modifier.width(12.dp))
+
                 Column {
                     Text(
-                        text = game.matchDescription,
-                        style = MaterialTheme.typography.bodyLarge
+                        text = "${game.awayTeam.name} @ ${game.homeTeam.name}",
+                        style = MaterialTheme.typography.bodyMedium
                     )
                     Text(
                         text = game.shortDescription,
@@ -447,6 +466,37 @@ private fun GameCleanCard(
                     Text("Clean")
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun TeamLogo(
+    logoUrl: String?,
+    teamName: String,
+    size: Int,
+    modifier: Modifier = Modifier
+) {
+    if (logoUrl != null) {
+        AsyncImage(
+            model = logoUrl,
+            contentDescription = "$teamName logo",
+            modifier = modifier
+                .size(size.dp)
+                .clip(CircleShape),
+            contentScale = ContentScale.Fit
+        )
+    } else {
+        Box(
+            modifier = modifier
+                .size(size.dp)
+                .clip(CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = teamName.take(3).uppercase(),
+                style = MaterialTheme.typography.labelSmall
+            )
         }
     }
 }
