@@ -1,5 +1,7 @@
 package trif.novica.spoilerchecker.ui.screens
 
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.AlertDialog
@@ -35,15 +38,21 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import trif.novica.spoilerchecker.data.model.FavoriteTeam
+import trif.novica.spoilerchecker.service.SpoilerNotificationListenerService
 import trif.novica.spoilerchecker.ui.components.CleaningResultCard
 import trif.novica.spoilerchecker.ui.viewmodel.HomeUiState
 import java.text.SimpleDateFormat
@@ -64,6 +73,19 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     var showAddTeamDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    var hasNotificationPermission by remember {
+        mutableStateOf(SpoilerNotificationListenerService.isPermissionGranted(context))
+    }
+
+    // Re-check permission when returning to app
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            hasNotificationPermission = SpoilerNotificationListenerService.isPermissionGranted(context)
+        }
+    }
 
     LazyColumn(
         modifier = modifier
@@ -96,6 +118,59 @@ fun HomeScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+        }
+
+        // Permission Required Card
+        if (!hasNotificationPermission) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.NotificationsOff,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    text = "Permission Required",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                                Text(
+                                    text = "Enable notification access to detect spoilers",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                context.startActivity(
+                                    Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Enable Notification Access")
+                        }
+                    }
                 }
             }
         }
@@ -163,7 +238,10 @@ fun HomeScreen(
             Button(
                 onClick = onCleanSpoilers,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = uiState.queryText.isNotBlank() && !uiState.isLoading && uiState.isModelReady
+                enabled = uiState.queryText.isNotBlank() &&
+                         !uiState.isLoading &&
+                         uiState.isModelReady &&
+                         hasNotificationPermission
             ) {
                 if (uiState.isLoading) {
                     CircularProgressIndicator(
@@ -175,6 +253,7 @@ fun HomeScreen(
                 }
                 Text(
                     text = when {
+                        !hasNotificationPermission -> "Permission required"
                         !uiState.isModelReady -> "Loading model..."
                         uiState.isLoading -> "Scanning..."
                         else -> "Clean Notifications"
