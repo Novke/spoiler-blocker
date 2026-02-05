@@ -20,7 +20,10 @@ class SpoilerDetector(
 ) {
     companion object {
         private const val TAG = "SpoilerDetector"
-        const val SEMANTIC_THRESHOLD = 0.3f
+        // High threshold (0.55) to minimize false positives
+        // Keyword & player matching are primary - semantic is just a fallback
+        // Based on threshold analysis: 0.55 gives 100% precision, 37% recall
+        const val SEMANTIC_THRESHOLD = 0.55f
     }
 
     /**
