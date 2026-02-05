@@ -2,7 +2,9 @@ package trif.novica.spoilerchecker.ui.screens
 
 import android.content.Intent
 import android.provider.Settings
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +27,7 @@ import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -37,6 +40,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -60,6 +65,9 @@ import trif.novica.spoilerchecker.service.SpoilerNotificationListenerService
 import trif.novica.spoilerchecker.ui.components.CleaningResultCard
 import trif.novica.spoilerchecker.ui.viewmodel.HomeUiState
 import trif.novica.spoilerchecker.ui.viewmodel.TimeFilter
+import trif.novica.spoilerchecker.data.model.CleaningResult
+import trif.novica.spoilerchecker.data.model.RemovedNotification
+import kotlinx.coroutines.flow.Flow
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -68,6 +76,7 @@ import java.util.Locale
 @Composable
 fun HomeScreen(
     uiState: HomeUiState,
+    toastEvents: Flow<String>,
     onCleanGame: (Game) -> Unit,
     onCleanTeam: (Team) -> Unit,
     onRemoveFavorite: (Int) -> Unit,
@@ -76,6 +85,7 @@ fun HomeScreen(
     onDismissResult: () -> Unit,
     onDismissError: () -> Unit,
     onNavigateToTeams: () -> Unit,
+    onGetRemovedNotifications: (CleaningResult) -> List<RemovedNotification>,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -85,11 +95,94 @@ fun HomeScreen(
         mutableStateOf(SpoilerNotificationListenerService.isPermissionGranted(context))
     }
 
+    // Toast handling
+    LaunchedEffect(Unit) {
+        toastEvents.collect { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Dialog state for showing removed notifications
+    var showDetailsDialog by remember { mutableStateOf<CleaningResult?>(null) }
+    var confirmShown by remember { mutableStateOf(false) }
+
     // Re-check permission when returning to app
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             hasNotificationPermission = SpoilerNotificationListenerService.isPermissionGranted(context)
         }
+    }
+
+    // Confirm dialog before showing spoilers
+    if (showDetailsDialog != null && !confirmShown) {
+        AlertDialog(
+            onDismissRequest = { showDetailsDialog = null },
+            title = { Text("Warning") },
+            text = { Text("This will show the content of removed notifications which may contain spoilers. Are you sure?") },
+            confirmButton = {
+                TextButton(onClick = { confirmShown = true }) {
+                    Text("Show Details")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDetailsDialog = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Details dialog showing removed notifications
+    if (showDetailsDialog != null && confirmShown) {
+        val result = showDetailsDialog!!
+        val notifications = onGetRemovedNotifications(result)
+
+        AlertDialog(
+            onDismissRequest = {
+                showDetailsDialog = null
+                confirmShown = false
+            },
+            title = { Text("Removed Notifications") },
+            text = {
+                if (notifications.isEmpty()) {
+                    Text("No details available for this cleaning.")
+                } else {
+                    LazyColumn {
+                        items(notifications.size) { index ->
+                            val notif = notifications[index]
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = notif.title,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    text = notif.text,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = notif.packageName,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDetailsDialog = null
+                    confirmShown = false
+                }) {
+                    Text("Close")
+                }
+            }
+        )
     }
 
     LazyColumn(
@@ -375,7 +468,12 @@ fun HomeScreen(
 
             items(uiState.recentResults.take(5)) { result ->
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = result.notificationsRemoved > 0) {
+                            showDetailsDialog = result
+                            confirmShown = false
+                        },
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                     )
@@ -398,11 +496,21 @@ fun HomeScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Text(
-                            text = "${result.notificationsRemoved} cleaned",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "${result.notificationsRemoved} cleaned",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            if (result.notificationsRemoved > 0) {
+                                Icon(
+                                    imageVector = Icons.Filled.ChevronRight,
+                                    contentDescription = "View details",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }

@@ -4,14 +4,17 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import trif.novica.spoilerchecker.data.model.CleaningResult
 import trif.novica.spoilerchecker.data.model.Game
+import trif.novica.spoilerchecker.data.model.RemovedNotification
 import trif.novica.spoilerchecker.data.model.Team
 import trif.novica.spoilerchecker.data.repository.GameRepository
 import trif.novica.spoilerchecker.data.repository.SpoilerRepository
@@ -64,6 +67,10 @@ class HomeViewModel(
     private val _isModelReady = MutableStateFlow(false)
     private val _lastResult = MutableStateFlow<CleaningResultMessage?>(null)
     private val _errorMessage = MutableStateFlow<String?>(null)
+
+    // Toast events channel (one-shot events)
+    private val _toastChannel = Channel<String>(Channel.BUFFERED)
+    val toastEvents = _toastChannel.receiveAsFlow()
 
     val uiState: StateFlow<HomeUiState> = combine(
         _allGames,
@@ -205,7 +212,21 @@ class HomeViewModel(
                 if (spoilers.isNotEmpty()) {
                     val keys = spoilers.map { it.notification.key }
                     SpoilerNotificationListenerService.cancelNotifications(keys)
-                    spoilerRepository.recordCleaningResult(game.matchDescription, spoilers.size)
+
+                    // Save removed notifications for history
+                    val removedNotifications = spoilers.map {
+                        RemovedNotification(
+                            packageName = it.notification.packageName,
+                            title = it.notification.title ?: "",
+                            text = it.notification.text ?: ""
+                        )
+                    }
+                    spoilerRepository.recordCleaningResult(game.matchDescription, removedNotifications)
+
+                    // Send toast
+                    _toastChannel.send("Cleaned ${spoilers.size} notification${if (spoilers.size > 1) "s" else ""}")
+                } else {
+                    _toastChannel.send("No matching notifications found")
                 }
 
                 _lastResult.value = CleaningResultMessage(queryText = game.matchDescription, removedCount = spoilers.size)
@@ -233,6 +254,7 @@ class HomeViewModel(
 
                 if (notifications.isEmpty()) {
                     _lastResult.value = CleaningResultMessage(queryText = team.name, removedCount = 0)
+                    _toastChannel.send("No matching notifications found")
                     return@launch
                 }
 
@@ -249,8 +271,7 @@ class HomeViewModel(
                 val keywords = team.getKeywords()
                 val lowerKeywords = keywords.map { it.lowercase() }.toSet()
 
-                var removedCount = 0
-                val keysToRemove = mutableListOf<String>()
+                val matchedNotifications = mutableListOf<trif.novica.spoilerchecker.data.model.NotificationInfo>()
 
                 for (notification in notifications) {
                     val text = notification.fullText.lowercase()
@@ -268,17 +289,29 @@ class HomeViewModel(
                     }
 
                     if (keywordMatch || playerMatch) {
-                        keysToRemove.add(notification.key)
-                        removedCount++
+                        matchedNotifications.add(notification)
                     }
                 }
 
-                if (keysToRemove.isNotEmpty()) {
-                    SpoilerNotificationListenerService.cancelNotifications(keysToRemove)
-                    spoilerRepository.recordCleaningResult(team.name, removedCount)
+                if (matchedNotifications.isNotEmpty()) {
+                    val keys = matchedNotifications.map { it.key }
+                    SpoilerNotificationListenerService.cancelNotifications(keys)
+
+                    val removedNotifications = matchedNotifications.map {
+                        RemovedNotification(
+                            packageName = it.packageName,
+                            title = it.title ?: "",
+                            text = it.text ?: ""
+                        )
+                    }
+                    spoilerRepository.recordCleaningResult(team.name, removedNotifications)
+
+                    _toastChannel.send("Cleaned ${matchedNotifications.size} notification${if (matchedNotifications.size > 1) "s" else ""}")
+                } else {
+                    _toastChannel.send("No matching notifications found")
                 }
 
-                _lastResult.value = CleaningResultMessage(queryText = team.name, removedCount = removedCount)
+                _lastResult.value = CleaningResultMessage(queryText = team.name, removedCount = matchedNotifications.size)
             } catch (e: Exception) {
                 Log.e(TAG, "Error cleaning spoilers for team", e)
                 _errorMessage.value = e.message ?: "An error occurred"
@@ -304,6 +337,10 @@ class HomeViewModel(
 
     fun dismissError() {
         _errorMessage.value = null
+    }
+
+    fun getRemovedNotifications(result: CleaningResult): List<RemovedNotification> {
+        return spoilerRepository.parseRemovedNotifications(result)
     }
 
     class Factory(

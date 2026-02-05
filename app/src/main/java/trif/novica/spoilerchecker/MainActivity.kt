@@ -102,6 +102,7 @@ private fun MainScreen(app: SpoilerShieldApp) {
 
                 HomeScreen(
                     uiState = uiState,
+                    toastEvents = viewModel.toastEvents,
                     onCleanGame = viewModel::cleanSpoilersForGame,
                     onCleanTeam = viewModel::cleanSpoilersForTeam,
                     onRemoveFavorite = viewModel::removeFavoriteTeam,
@@ -111,7 +112,8 @@ private fun MainScreen(app: SpoilerShieldApp) {
                     onDismissError = viewModel::dismissError,
                     onNavigateToTeams = {
                         navController.navigate(Screen.Teams.route)
-                    }
+                    },
+                    onGetRemovedNotifications = viewModel::getRemovedNotifications
                 )
             }
 

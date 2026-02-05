@@ -9,7 +9,13 @@
       "Bash(python download_model.py:*)",
       "Bash(curl:*)",
       "Bash(git rm:*)",
-      "WebFetch(domain:www.balldontlie.io)"
+      "WebFetch(domain:www.balldontlie.io)",
+      "Bash(adb logcat:*)",
+      "Bash(where:*)",
+      "Bash(dir:*)",
+      "Bash(\"C:\\\\Users\\\\Novica\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" logcat -d -s AndroidRuntime:E)",
+      "Bash(\"C:\\\\Users\\\\Novica\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" uninstall trif.novica.spoilerchecker)",
+      "Bash(\"C:\\\\Users\\\\Novica\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" install:*)"
     ]
   }
 }

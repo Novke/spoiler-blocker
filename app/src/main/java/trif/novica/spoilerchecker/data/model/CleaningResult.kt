@@ -8,5 +8,15 @@ data class CleaningResult(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val queryText: String,
     val notificationsRemoved: Int,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val removedNotificationsJson: String? = null  // JSON array of removed notification texts
+)
+
+/**
+ * Represents a removed notification for display purposes.
+ */
+data class RemovedNotification(
+    val packageName: String,
+    val title: String,
+    val text: String
 )
